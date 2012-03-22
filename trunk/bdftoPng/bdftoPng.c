@@ -571,7 +571,7 @@ void printhelp(void){
 /*
  *
  */
-int main(int argc, char *argv[]){
+int main3(int argc, char *argv[]){
         FILE *readP;
         FILE *writeP;
         char readFilename[FILENAME_CHARMAX] = "input.bdf";
