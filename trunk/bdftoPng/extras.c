@@ -1,4 +1,4 @@
-#include "missing_stl.h"
+
 #ifdef _STRCASECMP_
 #include <ctype.h>
 int strcasecmp(char * s1,char * s2)

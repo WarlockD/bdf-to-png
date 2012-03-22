@@ -37,10 +37,10 @@
     <ClInclude Include="bdftopng.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="missing_stl.h">
+    <ClInclude Include="unistd.h">
       <Filter>Source Files\missing_stl</Filter>
     </ClInclude>
-    <ClInclude Include="unistd.h">
+    <ClInclude Include="utils.h">
       <Filter>Source Files\missing_stl</Filter>
     </ClInclude>
   </ItemGroup>
@@ -48,23 +48,11 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="bdftoPng.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="write_png.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="fnt_file.c">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="bdftoheader.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="getopt.c">
-      <Filter>Source Files\missing_stl</Filter>
     </ClCompile>
     <ClCompile Include="dirent.c">
       <Filter>Source Files\missing_stl</Filter>
@@ -75,8 +63,14 @@
     <ClCompile Include="strtok_extra.c">
       <Filter>Source Files\missing_stl</Filter>
     </ClCompile>
-    <ClCompile Include="bdf_parser.c">
+    <ClCompile Include="bdf_parser.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.cpp">
+      <Filter>Source Files\missing_stl</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

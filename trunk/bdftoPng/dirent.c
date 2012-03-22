@@ -1,4 +1,4 @@
-#include "missing_stl.h"
+
 #ifdef _DIRENT_
 /*
 

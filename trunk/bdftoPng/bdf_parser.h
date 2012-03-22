@@ -1,28 +1,36 @@
 #ifndef _BDF_PARSER_H_
 #define _BDF_PARSER_H_
+#include <string>
+#include <vector>
+#include <bitset>
 
-#include "bdftopng.h"
 typedef unsigned char t_byte;
-typedef struct { int w; int h; int x; int y; } t_BDFBox;
-typedef struct { int w; int h;  } t_BDFSize;
-typedef struct {
-	t_BDFBox bbx;
-	t_BDFSize dwidth;
-	t_BDFSize swidth;
-	t_byte* bmp;
-} t_BDFGlyph;
+struct BDF_Box { int w; int h; int x; int y;  };
+struct BDF_Size { int w; int h; };
 
-typedef struct {
-	char font[128];
-	int point;
-	t_BDFSize size;
-	t_BDFBox bbox; 
-	int nchar;
-	t_BDFGlyph glyphs[256];
-} t_BDFInfo;
+struct BDF_Glyph 
+{
+	unsigned encoding;
+	BDF_Box bbx;
+	BDF_Size dwidth;
+	BDF_Size swidth;
+	std::vector<std::bitset<32>> bmp;
+	BDF_Glyph();
+	~BDF_Glyph();
+};
+class BDF_Info
+{
+private:
+	std::string _font;
+	int _point;
+	BDF_Size _size;
+	BDF_Box _bbox; 
+	int _nchars;
+	std::vector<BDF_Glyph> _glyphs;
+public:
+	BDF_Info();
+	void LoadFile(const char* filename);
+};
 
-
-int OpenBDF(const char* filename, t_BDFInfo* info);
-int CloseBDF(t_BDFInfo* stream);
 
 #endif
