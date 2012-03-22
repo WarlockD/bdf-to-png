@@ -1,3 +1,6 @@
+
+
+#include "missing_stl.h"
 #include "bdf_parser.h"
 #include "bdftopng.h"
 
@@ -8,19 +11,22 @@
 #endif
 
 #ifdef DEBUG
-#define TEST_GLYPH 'A'
-#endif
-// This REALLLY REALLY isn't unicode complient
-// Screw it though, considering I am reading 20 year old font files
-// I doubt anyone will care.  
-#define ON_FALSE_ERROR(exp,err) if(!(exp)) { error =err; goto finalise; }
-#define ON_TRUE_ERROR(exp,err) if(exp) { error =err; goto finalise; }
-
+#define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
+#include <crtdbg.h>
+#define TEST_GLYPH 'A'
+#define MALLOC(a) _malloc_dbg(a, _NORMAL_BLOCK,__FILE__,__LINE__);
+#else
+#include <stdlib.h>
+#include <malloc.h>
+#define MALLOC(a) malloc(a)
+#endif
+
+
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <malloc.h>
+
 #include <ctype.h>
 #include <assert.h>
 
@@ -34,6 +40,7 @@
 #define eatWhiteSpace(str) while(isWhiteSpace(*str) && *str !='\0') { str++; }
 // Eat till end of line and skip the end of line marker
 #define eatTillEndOfLine(str) while(*str != '\n' && *str !='\0') { str++; }
+#define Hex2Int(c) ((int)((int)c <='9' ? (int)c - '0' : (int)c <='F' ? (int)c -'A' + 10 : (int)c - 'a' + 10))
 // Simple charToHex, returns >15 if not valid.
 
 // Token Structure atoi
@@ -77,12 +84,13 @@ typedef struct  {
 
 
 t_sTokString tok_strings[] = { 
+	{"ENDCHAR",sizeof("ENDCHAR")-1,TOK_ENDCHAR},
 	{"STARTFONT",sizeof("STARTFONT")-1, TOK_STARTFONT},
 	{"FONT",sizeof("FONT")-1,TOK_FONT},
 	{"SIZE",sizeof("STARTFONT"),TOK_SIZE},
 	{"FONTBOUNDINGBOX",sizeof("FONTBOUNDINGBOX")-1,TOK_FONTBOUNDINGBOX},
-	{"STARTPROPERTIES",sizeof("STARTPROPERTIES")-1,TOK_STARTPROPERTIES},
-	{"ENDPROPERTIES",sizeof("ENDPROPERTIES")-1,TOK_ENDPROPERTIES},
+	//{"STARTPROPERTIES",sizeof("STARTPROPERTIES")-1,TOK_STARTPROPERTIES},
+	//{"ENDPROPERTIES",sizeof("ENDPROPERTIES")-1,TOK_ENDPROPERTIES},
 	{"CHARS",sizeof("CHARS")-1,TOK_CHARS},
 	{"STARTCHAR",sizeof("STARTCHAR")-1,TOK_STARTCHAR},
 	{"ENCODING",sizeof("ENCODING")-1,TOK_ENCODING},
@@ -90,113 +98,15 @@ t_sTokString tok_strings[] = {
 	{"DWIDTH",sizeof("DWIDTH")-1,TOK_DWIDTH},
 	{"BBX",sizeof("BBX")-1,TOK_BBX},
 	{"BITMAP",sizeof("BITMAP")-1,TOK_BITMAP},
-	{"ENDCHAR",sizeof("ENDCHAR")-1,TOK_ENDCHAR},
 	{"ENDFONT",sizeof("ENDFONT")-1,TOK_ENDFONT},
 	{NULL,0,TOK_ERROR},
 };
+#define TOK_ENDCHAR_STR tok_strings[0]
 
-static const t_sTokString tok_str_endchar = {"ENDCHAR",sizeof("ENDCHAR")-1,TOK_ENDCHAR};
 static const char *hex2bin[]= { 
 		"0000","0001","0010","0011","0100","0101","0110","0111",
 		"1000","1001","1010","1011","1100","1101","1110","1111"
 	};
-
-// Its funny.  I started out wanting to use gotos on this but ended up
-// using a bunch of for loops?  I wonder witch is more readable?
-// The freebsd/netbsd version of strok_r is just funky though
-// Some reason this looks sexy too.  merrow
-static char* strok_line(char**next) {
-	char *s,*tok; 
-	if (next == NULL || *next == NULL) return (NULL);
-
-	// Go to the first line mark
-	for(s = *next;(*s != '\r' && *s != '\n' && *s != '\0');s++);
-	// We mark it then, this is our new line and eat
-	// eat any extra lines or marks or whitepsace
-	for(*s++ = '\0';(*s == '\r' || *s == '\n'|| *s == ' ' || *s == '\t') && *s != '\0';s++);
-	// Last line? set last nill and return the line
-	tok = *next; 
-	*next = *s == '\0' ? NULL : s;
-	return tok; 
-}
-
-static char* strtok_r(char *s, const char *delim, char **last)
-{
-	char *spanp, *tok;
-	int c, sc;
-	if (s == NULL && (s = *last) == NULL) return (NULL);
-cont:
-	c = *s++;
-	for (spanp = (char *)delim; (sc = *spanp++) != 0;) 
-	{
-		if (c == sc)
-			goto cont;
-	}
-	if (c == 0) {  
-		*last = NULL;
-		return (NULL);
-	}
-	tok = s - 1;
-	
-	for (;;) 
-	{
-		c = *s++;
-		spanp = (char *)delim;
-		do {
-			if ((sc = *spanp++) == c) 
-			{
-				if (c == 0)
-					s = NULL;
-				else
-					s[-1] = '\0';
-				*last = s;
-				return (tok);
-			}
-		} while (sc != 0);
-	}
-/* NOTREACHED */
-}
-
-static int getToken(char* s) {
-	int len = strlen(s);
-	t_sTokString* t=tok_strings;
-	for(;t->tok != TOK_ERROR;t++) 
-		if(len == t->len)
-			if(!strcmp(s,t->str))
-				return t->tok;
-	
-	return TOK_ERROR;
-}
-
-
-int OpenBDF(const char* filename, t_sBDFStream* stream) {
-	
-	int error = BDF_NO_ERROR;
-	int size = 0;
-	FILE *f = NULL;
-	char* data=NULL;
-	ON_FALSE_ERROR(f = fopen(filename, "r"),BDF_ERROR_FILE);
-	memset(stream,0,sizeof(t_sBDFStream));
-	fseek(f, 0, SEEK_END);
-	size = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	data = (char *)malloc(size+1);
-	ON_TRUE_ERROR(size != fread(data, sizeof(char), size, f),BDF_ERROR_FILE);
-	stream->len = size;
-	stream->start = data;
-	stream->pos = NULL;
-	stream->next = NULL;
-	// Null as eveything went fine and we don't want to free the data
-	data = NULL;
-	
-finalise:
-	if(f)  fclose(f);
-	if(data) free(data);
-	return error;
-}
-
-
 
 static void printGlyph(unsigned char* bmp, unsigned encoding, int width, int height) {
 	char buff[512];
@@ -212,62 +122,96 @@ static void printGlyph(unsigned char* bmp, unsigned encoding, int width, int hei
 	}
 }
 
+static int getToken(char* s) {
+	int len = strlen(s);
+	t_sTokString* t=tok_strings;
+	for(;t->tok != TOK_ERROR;t++) 
+		if(len == t->len)
+			if(!strcmp(s,t->str))
+				return t->tok;
+	return TOK_ERROR;
+}
 
-
-int ParseBDF(t_sBDFStream* stream,t_BDFInfo* info)
+#if DEBUG4
+#define ON_TRUE_ERROR(exp,msg) if(exp) { err_msg = msg; printf("Line(%05d) Char(%h): %s\n",linenumber,encoding,err_msg); assert(0); goto exit_func; }
+#define ON_FALSE_ERROR(exp,msg) if(!(exp)) { err_msg = msg; printf("Line(%05d) Char(%h): %s\n",linenumber,encoding,err_msg); assert(0); goto exit_func; }
+#define ON_NULL_ERROR(exp,msg) ON_FALSE_ERROR(exp,msg)
+int CloseBDF(t_BDFInfo* info) { return 0;}
+#else
+#define ON_TRUE_ERROR(exp,msg) if(exp) { err_msg = msg; assert(0); goto exit_func; }
+#define ON_FALSE_ERROR(exp,msg) if(!(exp)) { err_msg = msg; _CrtDumpMemoryLeaks();  goto exit_func; }
+#define ON_NULL_ERROR(exp,msg) if(!(exp)) { err_msg = msg; _CrtDumpMemoryLeaks();  goto exit_func; }
+int CloseBDF(t_BDFInfo* info) { return 0;}
+#endif
+int OpenBDF(const char* filename,t_BDFInfo* info)
 { 
-	char buffer[1024];
-	unsigned encoding;
-	unsigned flags;
-	struct { int w; int h; } swidth;
-	struct { int w; int h; } dwidth;
-	struct { int w; int h; int x; int y; } bbx;
-	int itemp=0;
-	int state =0;
-	int linenumber =0;
-	int bpos =0;
-	int tok = TOK_SOF;
-	int i=0;
-	int error = BDF_ERROR_FILE;
-	char* last=NULL;
-	char* pos = NULL;
-	char* line = NULL;
+	size_t test;
+	const char* err_msg = NULL;
+	// File vars
+	int fsize = 0; FILE *f = NULL; char* fdata=NULL;
+	// Token State
+	int state =0; int linenumber =0; int bl=0;
+	int tok = TOK_SOF; unsigned flags; unsigned encoding;
+	t_BDFGlyph g; // temp gliphy
+	// String buffers and line data
+	char buffer[1024]; char *last=NULL,*line=NULL;
+	// Open File and read into string
+	ON_NULL_ERROR(f = fopen(filename, "r"),"Error Opening File");
+	fseek(f, 0, SEEK_END); fsize = ftell(f); fseek(f, 0, SEEK_SET);
+	ON_NULL_ERROR(fdata = (char *)malloc(fsize+1),"Error Allocating space for file");
+	ON_FALSE_ERROR(fsize == fread(fdata, sizeof(char), fsize, f),"Error reading file to space");
+	fdata[fsize]='\0'; fclose(f); f=NULL;
+	// Once done we don't need anymore
+
 	// Error out if we are not at the end of a stream or not at the begining
 	// of the next line to read
 	
-	ON_FALSE_ERROR(stream->start, BDF_ERROR_EOS);
-	memset(info,0,sizeof(t_BDFInfo));
-	last = stream->start;
+	memset(info,0,sizeof(t_BDFInfo)); // Clear the data
+	last = fdata;
 	while(line = strok_line(&last)) 
 	{
-		char* next=NULL;
+		int i,tok;
+		char *stok=NULL,*next=NULL;
 		linenumber++;
-		pos = strtok_r(line," \t",&next);
-#if 0
-		if(!pos)
-			printf("(%0000d) %s : %s\n",linenumber,"BADTOKEN",line);
-		else 
+		// Check if we are in a BITMAP state
+		if(state == TOK_BITMAP) 
 		{
-			tok=getToken(pos);
-			printf("(%0000d) %s : %s\n",linenumber,pos,next);
+			char c;
+			int len,hex;
+			len = strlen(line);
+			// Check end of bits
+			if(len == TOK_ENDCHAR_STR.len)
+				if(!strncmp(line,TOK_ENDCHAR_STR.str,TOK_ENDCHAR_STR.len))
+				{
+					memcpy(&info->glyphs[encoding],&g,sizeof(t_BDFGlyph));
+					state = TOK_STARTFONT;
+					continue;
+				}
+			for(i=0;i<len;i++) 
+			{
+				c = line[i];
+				hex = Hex2Int(c);
+				memcpy(buffer + (i*4),hex2bin + c,sizeof(char) * 4);
+			}
+			for(i=0;i<g.bbx.w;i++) 
+				g.bmp[(bl*g.bbx.h) + i] = buffer[i];
+			bl++;
+			continue;
 		}
-#else
-		
-#endif
-		
-		assert(pos);
-		tok=getToken(pos);
 
+		// Seperate the first part of the token with the next
+		stok = strtok_r(line," \t",&next); assert(stok);
+		tok = getToken(stok);
+		// If token not supported or error, continue
 		if(tok == TOK_ERROR) continue;
-		pos = NULL;
-		// Some of these fields I am just going to ignore 
+
 		switch(tok) {
-			case TOK_STARTFONT:
-				break; 
+			case TOK_STARTFONT: state=TOK_STARTFONT; break; 
 			case TOK_FONT: 
+				strncpy(info->font,next,sizeof(info->font)-1);
 				break; 
 			case TOK_SIZE:
-				i=sscanf(next,"%d %d %d",&info->size.p,&info->size.w,&info->size.h);
+				i=sscanf(next,"%d %d %d",&info->point,&info->size.w,&info->size.h);
 				assert(i==3);
 				break;
 			case TOK_FONTBOUNDINGBOX:
@@ -275,111 +219,64 @@ int ParseBDF(t_sBDFStream* stream,t_BDFInfo* info)
 				assert(i==4);
 				break;
 			case TOK_CHARS:
-				i=sscanf(next,"%d",&info->chars);
+				i=sscanf(next,"%d",&info->nchar);
 				assert(i==1);
 				break;
 			case TOK_STARTCHAR:
+				ON_FALSE_ERROR(state == TOK_STARTFONT || flags, "Header not Read")
 				state = TOK_STARTCHAR;
-				flags = 0;
+				memset(&g,0,sizeof(t_BDFGlyph));
+				flags = 0; encoding = 0;
 				break;
 			case TOK_ENCODING:
-				if(state != TOK_STARTCHAR) break;
-				i=sscanf(next,"%d",&encoding);
-				assert(i==1);
+				ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
+				ON_FALSE_ERROR(sscanf(next,"%d",&encoding) == 1, "Invalid Format")
 				flags |=BDF_FLAG_ENCODING;
 				break;
 			case TOK_SWIDTH:
-				if(state != TOK_STARTCHAR) break;
-				i=sscanf(next,"%d %d",&swidth.w,&swidth.h );
-				assert(i==2);
+				ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
+				ON_FALSE_ERROR(sscanf(next,"%d %d",&g.swidth.w,&g.swidth.h) == 2, "Invalid SWIDTH Format")
 				flags |=BDF_FLAG_SWIDTH;
 				break;
 			case TOK_DWIDTH:
-				if(state != TOK_STARTCHAR) break;
-				i=sscanf(next,"%d %d",&dwidth.w,&dwidth.h );
-				assert(i==2);
+				ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
+				ON_FALSE_ERROR(sscanf(next,"%d %d",&g.dwidth.w,&g.dwidth.h) ==2, "Invalid DWIDTH Format")
 				flags |=BDF_FLAG_DWIDTH;
 				break;
 			case TOK_BBX:
-				if(state != TOK_STARTCHAR) break;
-				i=sscanf(next,"%d %d %d %d",&bbx.w,&bbx.h,&bbx.x,&bbx.y);
-				assert(i==4);
+				ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
+				ON_FALSE_ERROR(sscanf(next,"%d %d %d %d",&g.bbx.w,&g.bbx.h,&g.bbx.x,&g.bbx.y) == 4, "Invalid BBX Format")
 				flags |=BDF_FLAG_BBX;
 				break;
 			case TOK_BITMAP:
-				if(state != TOK_STARTCHAR && flags != BDF_FLAG_ALL) 
-				{
-					printf("(%05d): Error at Bitmap, not all flags set before bitmap\n",linenumber);
-					assert(0); exit(EXIT_FAILURE);
-				} else 
-				{
-					unsigned char* bmp = NULL;
-					int bline=0;
-					bmp = (unsigned char*)malloc(sizeof(unsigned char) * bbx.w * bbx.h);
-					ON_FALSE_ERROR(bmp,BDF_ERROR_ALLOC);
-					while(line = strok_line(&last)) 
-					{
-						char *p = buffer;
-						char c;
-						int len = strlen(line);
-						int hex;
-						linenumber++;
-						// Check end of bits
-							if(len == tok_str_endchar.len)
-							if(!strncmp(line,tok_str_endchar.str,tok_str_endchar.len)) 
-								break;
-							memset(buffer,' ',len*4); 
-							buffer[len*4] = 0;
-							for(i=0; i<len; i++) 
-							{
-								c = line[i];
-								if(c >= '0' || c <= '9') hex = c - '0';
-								else if(c >= 'a' || c <= 'f') hex =  c - 'a';
-								else if(c >= 'A' || c <= 'B') hex =  c - 'A';
-								else {
-									printf("HEX PARSE ERROR\n");
-									assert(0); exit(EXIT_FAILURE);
-								}
-
-							//	sprintf(buffer, "0x%c", line[i]); /* get one character from hexadecimal strings */
-								//d = 
-								//hex = hexval(line[i]);
-								memcpy(bmp+(bline*bbx.w) + (i*4),hex2bin[hex],4);
-								//strcpy((char*)(buffer + (i*4)),hex2bin[hex]);
-							}
-							for(i=0;i<bbx.w;i++) bmp[(bline * bbx.h) + i] = buffer[i] -'0';
-							bline++;
-					}
-
-					if(encoding == 'A')
-						printGlyph(bmp,encoding,bbx.w,bbx.h);
-					printf("BITMAP: %d \n",encoding);
-					if(encoding == (unsigned)'A')
-					{
-						printGlyph(bmp,encoding,bbx.w,bbx.h);
-						assert(0);
-					}
-
-					info->glyphs[encoding].bmp = bmp;
-					info->glyphs[encoding].offx = bbx.x;
-					info->glyphs[encoding].offy = bbx.y;
-					info->glyphs[encoding].h = bbx.h;
-					info->glyphs[encoding].w = bbx.w;
-					// Cleanup
-					state = TOK_STARTFONT;
-					bmp = NULL;
-					memset(&bbx,0,sizeof(bbx));
-				}
+				ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
+				ON_FALSE_ERROR(flags == BDF_FLAG_ALL, "STARTCHAR Header not fully set before BITMAP") 
+				test = g.bbx.w * g.bbx.h,sizeof(t_byte);
+				//g.bmp = (t_byte*)malloc(test);
+				ON_NULL_ERROR(g.bmp, "Could not Allocate memory for Gliph")
+				state = TOK_BITMAP;
+				bl=0; // Current bitmap line
 				break;
 			case TOK_ENDFONT:
-				error = BDF_NO_ERROR;
-				goto finalise;
+				goto exit_func;
 			default:
 				break;
 		}
 	}
 
-finalise:
-	return error;
+exit_func:
+	if(f) { fclose(f); f=NULL; }
+	if(fdata) { free(fdata); fdata=NULL; }
+	if(g.bmp) { free(g.bmp); g.bmp=NULL; }
+	if(err_msg) 
+	{
+		printf("Error in reading %s\n",filename);
+		if(flags & BDF_FLAG_ENCODING) 
+			printf("Line(%05d) Char(%h): %s\n",linenumber,encoding,err_msg); 
+		else 
+			printf("Line(%05d): %s\n",linenumber,err_msg);
+
+		exit(EXIT_FAILURE);
+	}
 }
-int CloseBDF(const char* filename, t_sBDFStream* stream) { return 0;}
+

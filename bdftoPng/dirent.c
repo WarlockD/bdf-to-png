@@ -1,3 +1,5 @@
+#include "missing_stl.h"
+#ifdef _DIRENT_
 /*
 
     Implementation of POSIX directory browsing functions and types for Win32.
@@ -8,16 +10,11 @@
 
 */
 
-#include "dirent.h"
 #include <errno.h>
 #include <io.h> /* _findfirst and _findnext set errno iff they return -1 */
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
 
 struct DIR
 {
@@ -125,9 +122,6 @@ void rewinddir(DIR *dir)
     }
 }
 
-#ifdef __cplusplus
-}
-#endif
 
 /*
 
@@ -143,3 +137,5 @@ void rewinddir(DIR *dir)
     But that said, if there are any problems please get in touch.
 
 */
+
+#endif //_DIRENT_
