@@ -7,16 +7,6 @@
 
 
 
-#define INIT_PNG(p_png,p_info) \
-	p_png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);\
-	if(!p_png) \
-		{ return BDF_ERROR_PNG; }\
-	p_info = png_create_info_struct(p_png);\
-	if(!p_info) \
-		{ png_destroy_write_struct(&p_png, NULL);  return BDF_ERROR_PNG; }\
-	if (setjmp(png_jmpbuf(p_png))) \
-		{ png_destroy_write_struct(&p_png, &p_info);  return BDF_ERROR_PNG; }
-
 
 
 int WriteCharInBitmap(t_s1bitBitmap*buffer, int buffer_x, int buffer_y, unsigned char* data, int width, int height)

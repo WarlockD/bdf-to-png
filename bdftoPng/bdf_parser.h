@@ -1,5 +1,5 @@
-#ifndef _BDF_PARSER_H_
-#define _BDF_PARSER_H_
+#pragma once
+#include "bdftopng.h"
 #include <string>
 #include <vector>
 #include <bitset>
@@ -14,13 +14,16 @@ struct BDF_Glyph
 	BDF_Box bbx;
 	BDF_Size dwidth;
 	BDF_Size swidth;
-	std::vector<std::bitset<32>> bmp;
+	std::vector<std::bitset<BDF_MAX_BITS_PER_ROW>> bmp;
 	BDF_Glyph();
 	~BDF_Glyph();
 };
+typedef std::vector<BDF_Glyph>::iterator BDF_Glyph_it;
 class BDF_Info
 {
-private:
+protected:
+	bool _valid;
+	std::string _filename;
 	std::string _font;
 	int _point;
 	BDF_Size _size;
@@ -28,9 +31,6 @@ private:
 	int _nchars;
 	std::vector<BDF_Glyph> _glyphs;
 public:
-	BDF_Info();
+	BDF_Info(const char* filename=NULL);
 	void LoadFile(const char* filename);
 };
-
-
-#endif
