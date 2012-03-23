@@ -92,6 +92,7 @@
   <ItemGroup>
     <ClInclude Include="bdftopng.h" />
     <ClInclude Include="bdf_parser.h" />
+    <ClInclude Include="bdf_png.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="unistd.h" />
@@ -100,6 +101,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="bdf_parser.cpp" />
+    <ClCompile Include="bdf_png.cpp" />
     <ClCompile Include="dirent.c" />
     <ClCompile Include="extras.c" />
     <ClCompile Include="fnt_file.c" />

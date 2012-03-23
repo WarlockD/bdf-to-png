@@ -22,23 +22,22 @@ using namespace std;
 
 
 
-class bdf_exception: public std::exception
+class bdf_parser_exception: public std::exception
 {
 	string _msg;
 	int _linenumber;
 public:
-	bdf_exception(const char* msg, int linenumber) 
+	bdf_parser_exception(const char* msg, const char* filename, int linenumber) 
 	{
 		_linenumber = linenumber;
-		_msg = sutil::format("Line(%04d): %s\n",linenumber,msg);
+		_msg = sutil::format("File(%s) Line(%04d): %s\n",filename,linenumber,msg);
 	}
 	virtual const char* what() const throw() { return _msg.c_str();}
 } ;
 
 
-#define ON_TRUE_ERROR(exp,msg) if(exp) { throw bdf_exception(msg,linenumber);  }
-#define ON_FALSE_ERROR(exp,msg) if(!(exp)) {  throw bdf_exception(msg,linenumber);  }
-#define ON_NULL_ERROR(exp,msg) if(!(exp)) { _CrtDumpMemoryLeaks(); throw bdf_exception(msg,linenumber);   }
+#define ON_TRUE_ERROR(exp,msg) if(exp) { throw bdf_parser_exception(msg,_filename.c_str(), linenumber);  }
+#define ON_FALSE_ERROR(exp,msg) if(!(exp)) {  throw bdf_parser_exception(msg,_filename.c_str(), linenumber);  }
 
 #define isWhiteSpace(ch) (ch == ' ' || ch == '\t' || ch == '\r')
 #define isUpper(ch) (ch >= 'A' && ch <= 'Z')
@@ -60,7 +59,12 @@ enum {
 	BDF_FLAG_SWIDTH = (1 << 2),
 	BDF_FLAG_DWIDTH = (1 << 3),
 	BDF_FLAG_BBX = (1 << 4),
-	BDF_FLAG_ALL = BDF_FLAG_ENCODING | BDF_FLAG_SWIDTH | BDF_FLAG_DWIDTH | BDF_FLAG_BBX
+	BDF_FLAG_STARTFONT = (1 << 5),
+	BDF_FLAG_FONT = (1 << 6),
+	BDF_FLAG_CHARS = (1 << 7),
+	BDF_FONTBOUNDINGBOX = (1 << 8),
+	BDF_FLAG_ALL = BDF_FLAG_ENCODING | BDF_FLAG_SWIDTH | BDF_FLAG_DWIDTH | BDF_FLAG_BBX,
+	BDF_HEADER_ALL = BDF_FLAG_STARTFONT | BDF_FLAG_CHARS | BDF_FLAG_CHARS | BDF_FONTBOUNDINGBOX
 };
 enum {
 	TOK_STARTFONT=0,
@@ -135,8 +139,9 @@ static void printGlyph(unsigned char* bmp, unsigned encoding, int width, int hei
 static int getToken(const string& s) {
 	t_sTokString* t=tok_strings;
 	for(;t->tok != TOK_ERROR;t++) 
-		if(!s.compare(0,t->len,t->str,t->len))
-			return t->tok;
+		if(s.length() == t->len)
+			if(!s.compare(0,t->len,t->str,t->len))
+				return t->tok;
 	return TOK_ERROR;
 }
 
@@ -150,12 +155,17 @@ BDF_Glyph::BDF_Glyph()
 }
 BDF_Glyph::~BDF_Glyph() {}
 
-BDF_Info::BDF_Info() {
+
+BDF_Info::BDF_Info(const char* filename)
+{
 	_point =0;
 	_size.h = _size.w = 0;
 	_bbox.x = _bbox.y = _bbox.h = _bbox.w = 0; 
 	_font = "";
 	_glyphs.reserve(256);
+	_valid = false;
+	if(filename) _filename = filename;
+	if(filename) LoadFile(_filename.c_str());
 }
 void BDF_Info::LoadFile(const char* filename) 
 {
@@ -169,6 +179,7 @@ void BDF_Info::LoadFile(const char* filename)
 	unsigned flags; unsigned encoding;
 	BDF_Glyph g; // temp gliphy
 	// String buffers and line data
+	_valid = false;
 	try
 	{
 		f.open(filename,ios::in);
@@ -179,12 +190,12 @@ void BDF_Info::LoadFile(const char* filename)
 			if(state == TOK_BITMAP) 
 			{
 				string bits;
-				std::bitset<32> bitline;
+				std::bitset<BDF_MAX_BITS_PER_ROW> bitline;
 				// Check end of bits
 				if(line.length() == TOK_ENDCHAR_STR.len)
 					if(!line.compare(0,TOK_ENDCHAR_STR.len, TOK_ENDCHAR_STR.str,TOK_ENDCHAR_STR.len))
 					{
-#if DEBUG
+#if 0 //DEBUG
 						cout << "-------------" << endl;
 						cout << "Char(" << encoding << ")" << endl;
 						for(int i=0;i < g.bbx.h;i++)
@@ -239,6 +250,7 @@ void BDF_Info::LoadFile(const char* filename)
 				case TOK_ENCODING:
 					ON_FALSE_ERROR(state == TOK_STARTCHAR, "Not in a STARTCHAR")
 					line_stream >> encoding;
+					g.encoding = encoding;
 					flags |=BDF_FLAG_ENCODING;
 					break;
 				case TOK_SWIDTH:
@@ -264,6 +276,7 @@ void BDF_Info::LoadFile(const char* filename)
 					bl=0; // Current bitmap line
 					break;
 				case TOK_ENDFONT:
+					_valid = true;
 					return;
 				default:
 					break;
